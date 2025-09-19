@@ -426,9 +426,9 @@ class MCPResolvepayConnector:
                 merchant_id=settings.get("merchant_id", ""),
                 api_key=settings.get("api_key", ""),
                 base_url=settings.get("base_url", "https://api.resolvepay.com/v5"),
-                timeout=settings.get("timeout", 30),
-                max_retries=settings.get("max_retries", 3),
-                rate_limit_calls_per_second=settings.get("rate_limit_calls_per_second", 10),
+                timeout=int(settings.get("timeout", 30)),
+                max_retries=int(settings.get("max_retries", 3)),
+                rate_limit_calls_per_second=int(settings.get("rate_limit_calls_per_second", 10)),
                 debug_mode=settings.get("debug_mode", False),
             )
         except ValueError as e:
