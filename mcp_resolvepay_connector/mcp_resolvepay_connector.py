@@ -92,7 +92,7 @@ MCP_CONFIGURATION = {
                     "email",
                 ],
             },
-            "annotations": null,
+            "annotations": None,
         },
         {
             "name": "get_customer",
@@ -107,7 +107,7 @@ MCP_CONFIGURATION = {
                 },
                 "required": ["customer_id"],
             },
-            "annotations": null,
+            "annotations": None,
         },
         {
             "name": "update_customer",
@@ -164,7 +164,7 @@ MCP_CONFIGURATION = {
                 },
                 "required": ["customer_id"],
             },
-            "annotations": null,
+            "annotations": None,
         },
         {
             "name": "search_customers",
@@ -211,7 +211,7 @@ MCP_CONFIGURATION = {
                 },
                 "required": [],
             },
-            "annotations": null,
+            "annotations": None,
         },
         {
             "name": "request_customer_credit_check",
@@ -234,7 +234,7 @@ MCP_CONFIGURATION = {
                 },
                 "required": ["customer_id", "amount_requested", "has_purchase_history"],
             },
-            "annotations": null,
+            "annotations": None,
         },
         {
             "name": "get_credit_check_status",
@@ -249,7 +249,7 @@ MCP_CONFIGURATION = {
                 },
                 "required": ["customer_id"],
             },
-            "annotations": null,
+            "annotations": None,
         },
         {
             "name": "validate_customer_data",
@@ -296,7 +296,7 @@ MCP_CONFIGURATION = {
                 },
                 "required": [],
             },
-            "annotations": null,
+            "annotations": None,
         },
     ],
     "resources": [],
