@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcp_resolvepay_connector"
-version = "0.1.0"
+version = "0.0.1"
 description = "MCP ResolvePay Connector - A Python connector for ResolvePay credit and payment integration"
 authors = [
     {name = "IdeaBosque", email = "ideabosque@gmail.com"}
