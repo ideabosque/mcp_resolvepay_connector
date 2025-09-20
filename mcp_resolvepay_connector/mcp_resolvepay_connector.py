@@ -9,15 +9,15 @@ import traceback
 from functools import wraps
 from typing import Any, Dict, List, Optional
 
-from .auth import ResolvepayAuth
-from .exceptions import (
+from mcp_resolvepay_connector.auth import ResolvepayAuth
+from mcp_resolvepay_connector.exceptions import (
     ResolvepayAPIException,
     ResolvepayConfigurationException,
     ResolvepayCustomerNotFoundException,
     ResolvepayValidationException,
 )
-from .http_client import ResolvepayHTTPClient
-from .models import (
+from mcp_resolvepay_connector.http_client import ResolvepayHTTPClient
+from mcp_resolvepay_connector.models import (
     CreditCheckRequest,
     CreditCheckResult,
     CustomerRequest,
@@ -25,7 +25,7 @@ from .models import (
     PaymentTerms,
     ResolvepayConfig,
 )
-from .rate_limiter import RateLimiter
+from mcp_resolvepay_connector.rate_limiter import RateLimiter
 
 MCP_CONFIGURATION = {
     "tools": [
