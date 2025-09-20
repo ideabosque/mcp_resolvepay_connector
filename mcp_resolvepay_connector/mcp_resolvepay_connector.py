@@ -663,6 +663,11 @@ class MCPResolvepayConnector:
         """
         try:
             self.logger.info(f"Updating customer with arguments: {arguments}")
+            endpoint_id = arguments.pop("endpoint_id", None)
+            if endpoint_id:
+                self.logger.warning(
+                    f"endpoint_id={endpoint_id} is not used in update_customer and will be ignored"
+                )
 
             customer_id = arguments.get("customer_id")
             if not customer_id:
