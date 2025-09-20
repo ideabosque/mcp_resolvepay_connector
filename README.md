@@ -18,14 +18,12 @@ mcp_resolvepay_connector/
 |-- http_client.py        # Rate limited HTTP client with retry logic
 |-- models.py             # Pydantic models and configuration schemas
 |-- rate_limiter.py       # Token bucket limiter
-|-- utils.py              # Shared helpers
 |-- tests/
     |-- conftest.py       # Fixtures and response builders
     |-- pytest.ini        # Pytest configuration
     |-- requirements.txt  # Test only dependencies
     |-- test_auth.py
     |-- test_models.py
-    |-- test_utils.py
     |-- test_mcp_resolvepay_connector.py
 ```
 

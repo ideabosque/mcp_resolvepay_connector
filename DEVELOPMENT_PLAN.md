@@ -11,7 +11,6 @@ Provide an actionable view of the current connector implementation, outstanding 
   - `models.py`: Pydantic models for configuration, customer payloads, and credit check objects.
   - `exceptions.py`: Typed hierarchy surfaced by the connector and tests.
   - `rate_limiter.py`: Token bucket limiter tuned via `rate_limit_calls_per_second`.
-  - `utils.py`: Shared helpers for pagination, serialization, and logging contexts.
 - Test suite under `mcp_resolvepay_connector/tests/` exercises models, auth, utilities, and connector flows with mocked responses.
 - Tooling: Linting and formatting use `black`, `isort`, `flake8`, and `mypy` (strict mode). Tests run directly with pytest.
 
@@ -55,7 +54,7 @@ Provide an actionable view of the current connector implementation, outstanding 
 ## Reference Module Map
 - Customer workflows: `mcp_resolvepay_connector.py` (`create_customer`, `get_customer`, `update_customer`, `search_customers`).
 - Credit checks: `mcp_resolvepay_connector.py` (`request_customer_credit_check`, `get_credit_check_status`).
-- Validation helpers: `models.py`, `utils.py`.
+- Validation helpers: `models.py`.
 - Errors and retry logic: `exceptions.py`, `http_client.py`, `rate_limiter.py`.
 
 ## Success Criteria for Next Release
