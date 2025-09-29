@@ -26,7 +26,6 @@ from .http_client import ResolvepayHTTPClient
 from .mcp_resolvepay_connector import (
     MCP_CONFIGURATION,
     MCPResolvepayConnector,
-    handle_resolvepay_errors,
 )
 
 # Models
@@ -47,7 +46,6 @@ __all__ = [
     # Core
     "MCPResolvepayConnector",
     "MCP_CONFIGURATION",
-    "handle_resolvepay_errors",
     # Auth
     "ResolvepayAuth",
     # HTTP Client

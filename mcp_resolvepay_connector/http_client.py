@@ -67,7 +67,9 @@ class ResolvepayHTTPClient:
         """Get full URL for endpoint"""
         return urljoin(self.base_url + "/", endpoint.lstrip("/"))
 
-    def _prepare_headers(self, additional_headers: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    def _prepare_headers(
+        self, additional_headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, str]:
         """Prepare headers with authentication"""
         headers = self.auth.get_auth_headers()
         if additional_headers:
@@ -76,96 +78,97 @@ class ResolvepayHTTPClient:
 
     def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
         """Handle API response and errors"""
-        try:
-            if response.status_code == 401:
-                raise ResolvepayAuthenticationException(
-                    "Authentication failed. Check merchant_id and api_key."
-                )
-
-            if response.status_code == 429:
-                retry_after = response.headers.get("Retry-After")
-                raise ResolvepayRateLimitException(
-                    "Rate limit exceeded",
-                    retry_after=int(retry_after) if retry_after else None,
-                )
-
-            if response.status_code == 400:
-                error_data = {}
-                try:
-                    error_data = response.json()
-                except json.JSONDecodeError:
-                    pass
-
-                raise ResolvepayValidationException(
-                    f"Validation error: {response.text}",
-                    details={"status_code": 400, "response_data": error_data},
-                )
-
-            if response.status_code == 404:
-                raise ResolvepayAPIException(
-                    404,
-                    "Resource not found",
-                    response_data={"url": response.url, "method": response.request.method},
-                )
-
-            if response.status_code == 422:
-                error_data = {}
-                error_message = "Unprocessable Entity"
-                try:
-                    error_data = response.json()
-                    if "error" in error_data:
-                        error_details = error_data["error"]
-                        if "message" in error_details:
-                            error_message = error_details["message"]
-                        if "details" in error_details:
-                            # Include detailed validation errors
-                            details = error_details["details"]
-                            if isinstance(details, list) and len(details) > 0:
-                                detail_messages = [f"{d.get('path', 'field')}: {d.get('message', 'error')}" for d in details]
-                                error_message += f" - {', '.join(detail_messages)}"
-                    else:
-                        error_message = response.text or error_message
-                except json.JSONDecodeError:
-                    error_message = response.text or error_message
-
-                raise ResolvepayValidationException(
-                    f"Business validation error: {error_message}",
-                    details={"status_code": 422, "response_data": error_data},
-                )
-
-            if not response.ok:
-                error_message = f"API request failed with status {response.status_code}"
-                try:
-                    error_data = response.json()
-                    if "message" in error_data:
-                        error_message = error_data["message"]
-                except json.JSONDecodeError:
-                    error_message = response.text or error_message
-
-                raise ResolvepayAPIException(
-                    response.status_code,
-                    error_message,
-                    response_data=error_data if "error_data" in locals() else {},
-                )
-
-            if response.status_code == 204:
-                return {}
-
-            try:
-                return response.json()
-            except json.JSONDecodeError:
-                if response.text:
-                    return {"raw_response": response.text}
-                return {}
-
-        except ResolvepayAPIException:
-            raise
-        except Exception as e:
-            self.logger.error(f"Unexpected error handling response: {e}")
-            raise ResolvepayAPIException(
-                response.status_code if hasattr(response, "status_code") else 500,
-                f"Unexpected error: {str(e)}",
+        # Handle specific status codes
+        if response.status_code == 401:
+            raise ResolvepayAuthenticationException(
+                "Authentication failed. Check merchant_id and api_key."
             )
+
+        if response.status_code == 429:
+            retry_after = response.headers.get("Retry-After")
+            raise ResolvepayRateLimitException(
+                "Rate limit exceeded",
+                retry_after=int(retry_after) if retry_after else None,
+            )
+
+        if response.status_code == 404:
+            raise ResolvepayAPIException(
+                404,
+                "Resource not found",
+                response_data={"url": response.url, "method": response.request.method},
+            )
+
+        # Handle validation errors (400, 422)
+        if response.status_code in [400, 422]:
+            error_data = self._safe_json_decode(response)
+            error_message = self._extract_error_message(error_data, response)
+
+            error_type = (
+                "Validation error" if response.status_code == 400 else "Business validation error"
+            )
+            raise ResolvepayValidationException(
+                f"{error_type}: {error_message}",
+                details={"status_code": response.status_code, "response_data": error_data},
+            )
+
+        # Handle other errors
+        if not response.ok:
+            error_data = self._safe_json_decode(response)
+            error_message = error_data.get("message") if error_data else response.text
+            error_message = (
+                error_message or f"API request failed with status {response.status_code}"
+            )
+
+            raise ResolvepayAPIException(
+                response.status_code,
+                error_message,
+                response_data=error_data,
+            )
+
+        # Handle successful responses
+        if response.status_code == 204:
+            return {}
+
+        return (
+            self._safe_json_decode(response) or {"raw_response": response.text}
+            if response.text
+            else {}
+        )
+
+    def _safe_json_decode(self, response: requests.Response) -> Dict[str, Any]:
+        """Safely decode JSON response"""
+        try:
+            return response.json()
+        except json.JSONDecodeError:
+            return {}
+
+    def _extract_error_message(
+        self, error_data: Dict[str, Any], response: requests.Response
+    ) -> str:
+        """Extract error message from response data"""
+        if not error_data:
+            return response.text or "Unknown error"
+
+        # Handle structured error format
+        if "error" in error_data:
+            error_details = error_data["error"]
+            message = error_details.get("message", "Unknown error")
+
+            # Add validation details if present
+            if "details" in error_details:
+                details = error_details["details"]
+                if isinstance(details, list) and details:
+                    detail_messages = [
+                        f"{d.get('path', 'field')}: {d.get('message', 'error')}" for d in details
+                    ]
+                    message += f" - {', '.join(detail_messages)}"
+            return message
+
+        # Handle simple message format
+        if "message" in error_data:
+            return error_data["message"]
+
+        return response.text or "Unknown error"
 
     def get(
         self,

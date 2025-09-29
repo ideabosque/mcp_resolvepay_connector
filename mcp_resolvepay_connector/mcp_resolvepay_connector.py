@@ -6,7 +6,6 @@ __author__ = "bibow"
 
 import logging
 import traceback
-from functools import wraps
 from typing import Any, Dict, List, Optional
 
 from mcp_resolvepay_connector.auth import ResolvepayAuth
@@ -378,25 +377,6 @@ MCP_CONFIGURATION = {
 }
 
 
-def handle_resolvepay_errors(func):
-    """Decorator to handle ResolvePay API errors consistently"""
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except ResolvepayAPIException as e:
-            logging.error(f"ResolvePay API error in {func.__name__}: {e}")
-            raise Exception(f"ResolvePay API error: {e.message}")
-        except ResolvepayValidationException as e:
-            logging.error(f"Validation error in {func.__name__}: {e}")
-            raise Exception(f"Validation error: {e.message}")
-        except Exception as e:
-            logging.error(f"Unexpected error in {func.__name__}: {e}")
-            raise Exception(f"Unexpected error: {str(e)}")
-
-    return wrapper
-
 
 class MCPResolvepayConnector:
     """Main connector class for ResolvePay API integration"""
@@ -489,7 +469,6 @@ class MCPResolvepayConnector:
                 )
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def create_customer(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new customer in ResolvePay
 
@@ -562,7 +541,6 @@ class MCPResolvepayConnector:
             }
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def get_customer(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Retrieve customer information by ID
 
@@ -620,7 +598,6 @@ class MCPResolvepayConnector:
             }
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def update_customer(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Update existing customer information
 
@@ -700,7 +677,6 @@ class MCPResolvepayConnector:
             }
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def search_customers(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Search customers by various criteria
 
@@ -808,7 +784,6 @@ class MCPResolvepayConnector:
             }
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def request_customer_credit_check(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Request credit check for existing customer
 
@@ -879,7 +854,6 @@ class MCPResolvepayConnector:
             }
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def get_credit_check_status(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Get credit check status and results from customer data
 
@@ -928,7 +902,6 @@ class MCPResolvepayConnector:
             }
 
     # * MCP Function.
-    @handle_resolvepay_errors
     def validate_customer_data(self, **arguments: Dict[str, Any]) -> Dict[str, Any]:
         """Validate customer data without creating a customer
 
