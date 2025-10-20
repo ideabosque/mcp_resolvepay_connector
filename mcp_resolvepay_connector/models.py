@@ -43,6 +43,7 @@ class ResolvepayConfig:
     max_retries: int = 3
     rate_limit_calls_per_second: int = 10
     debug_mode: bool = False
+    http2_enabled: bool = True
 
     def __post_init__(self):
         if not self.merchant_id:
@@ -103,7 +104,9 @@ class CustomerRequest:
             email=data["email"],
             business_ap_phone=data.get("business_ap_phone"),
             business_ap_phone_extension=data.get("business_ap_phone_extension"),
-            default_terms=PaymentTerms(data["default_terms"]) if data.get("default_terms") else None,
+            default_terms=PaymentTerms(data["default_terms"])
+            if data.get("default_terms")
+            else None,
         )
 
 

@@ -76,7 +76,15 @@ MCP_CONFIGURATION = {
                     },
                     "default_terms": {
                         "type": "string",
-                        "enum": ["net7", "net10", "net15", "net30", "net45", "net60", "net90"],
+                        "enum": [
+                            "net7",
+                            "net10",
+                            "net15",
+                            "net30",
+                            "net45",
+                            "net60",
+                            "net90",
+                        ],
                         "description": "Default payment terms for the customer (optional)",
                     },
                 },
@@ -126,7 +134,10 @@ MCP_CONFIGURATION = {
                         "type": "string",
                         "description": "Updated street address (optional)",
                     },
-                    "business_city": {"type": "string", "description": "Updated city (optional)"},
+                    "business_city": {
+                        "type": "string",
+                        "description": "Updated city (optional)",
+                    },
                     "business_state": {
                         "type": "string",
                         "description": "Updated state/province code (optional)",
@@ -157,7 +168,15 @@ MCP_CONFIGURATION = {
                     },
                     "default_terms": {
                         "type": "string",
-                        "enum": ["net7", "net10", "net15", "net30", "net45", "net60", "net90"],
+                        "enum": [
+                            "net7",
+                            "net10",
+                            "net15",
+                            "net30",
+                            "net45",
+                            "net60",
+                            "net90",
+                        ],
                         "description": "Updated default payment terms (optional)",
                     },
                 },
@@ -183,7 +202,10 @@ MCP_CONFIGURATION = {
                         "type": "string",
                         "description": "Search by accounts payable email address",
                     },
-                    "business_city": {"type": "string", "description": "Search by business city"},
+                    "business_city": {
+                        "type": "string",
+                        "description": "Search by business city",
+                    },
                     "business_state": {
                         "type": "string",
                         "description": "Search by business state/province",
@@ -256,12 +278,18 @@ MCP_CONFIGURATION = {
             "inputSchema": {
                 "type": "object",
                 "properties": {
-                    "business_name": {"type": "string", "description": "Business name to validate"},
+                    "business_name": {
+                        "type": "string",
+                        "description": "Business name to validate",
+                    },
                     "business_address": {
                         "type": "string",
                         "description": "Business address to validate",
                     },
-                    "business_city": {"type": "string", "description": "Business city to validate"},
+                    "business_city": {
+                        "type": "string",
+                        "description": "Business city to validate",
+                    },
                     "business_state": {
                         "type": "string",
                         "description": "Business state/province to validate",
@@ -278,7 +306,10 @@ MCP_CONFIGURATION = {
                         "type": "string",
                         "description": "Accounts payable email to validate",
                     },
-                    "email": {"type": "string", "description": "Primary contact email to validate"},
+                    "email": {
+                        "type": "string",
+                        "description": "Primary contact email to validate",
+                    },
                     "business_ap_phone": {
                         "type": "string",
                         "description": "Phone number to validate (optional)",
@@ -289,7 +320,15 @@ MCP_CONFIGURATION = {
                     },
                     "default_terms": {
                         "type": "string",
-                        "enum": ["net7", "net10", "net15", "net30", "net45", "net60", "net90"],
+                        "enum": [
+                            "net7",
+                            "net10",
+                            "net15",
+                            "net30",
+                            "net45",
+                            "net60",
+                            "net90",
+                        ],
                         "description": "Payment terms to validate (optional)",
                     },
                 },
@@ -371,11 +410,11 @@ MCP_CONFIGURATION = {
                 "max_retries": 3,
                 "rate_limit_calls_per_second": 10,
                 "debug_mode": True,
+                "http2_enabled": True,
             },
         }
     ],
 }
-
 
 
 class MCPResolvepayConnector:
@@ -395,6 +434,7 @@ class MCPResolvepayConnector:
             max_retries=self.config.max_retries,
             rate_limiter=self.rate_limiter,
             logger=logger,
+            http2=self.config.http2_enabled,
         )
 
         self.logger.info("MCPResolvepayConnector initialized successfully")
@@ -410,6 +450,7 @@ class MCPResolvepayConnector:
                 max_retries=int(settings.get("max_retries", 3)),
                 rate_limit_calls_per_second=int(settings.get("rate_limit_calls_per_second", 10)),
                 debug_mode=settings.get("debug_mode", False),
+                http2_enabled=settings.get("http2_enabled", True),
             )
         except ValueError as e:
             raise ResolvepayConfigurationException(f"Configuration error: {e}")

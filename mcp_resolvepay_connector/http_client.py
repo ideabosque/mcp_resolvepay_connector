@@ -11,9 +11,7 @@ import traceback
 from typing import Any, Dict, Optional, Union
 from urllib.parse import urljoin
 
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
+import httpx
 
 from .auth import ResolvepayAuth
 from .exceptions import (
@@ -36,6 +34,7 @@ class ResolvepayHTTPClient:
         max_retries: int = 3,
         rate_limiter: Optional[RateLimiter] = None,
         logger: Optional[logging.Logger] = None,
+        http2: bool = True,
     ):
         self.base_url = base_url.rstrip("/")
         self.auth = auth
@@ -43,25 +42,39 @@ class ResolvepayHTTPClient:
         self.max_retries = max_retries
         self.rate_limiter = rate_limiter or RateLimiter()
         self.logger = logger or logging.getLogger(__name__)
+        self.http2 = http2
 
-        self.session = self._create_session()
+        self.client = self._create_client()
 
-    def _create_session(self) -> requests.Session:
-        """Create requests session with retry strategy"""
-        session = requests.Session()
-
-        retry_strategy = Retry(
-            total=self.max_retries,
-            status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"],
-            backoff_factor=1,
+    def _create_client(self) -> httpx.Client:
+        """Create httpx client with HTTP/2 support and connection pooling"""
+        limits = httpx.Limits(
+            max_connections=100,
+            max_keepalive_connections=20,
+            keepalive_expiry=30.0,
         )
 
-        adapter = HTTPAdapter(max_retries=retry_strategy)
-        session.mount("http://", adapter)
-        session.mount("https://", adapter)
+        timeout = httpx.Timeout(
+            timeout=self.timeout,
+            connect=10.0,
+            read=self.timeout,
+            write=10.0,
+            pool=5.0,
+        )
 
-        return session
+        client = httpx.Client(
+            http2=self.http2,
+            limits=limits,
+            timeout=timeout,
+            follow_redirects=True,
+        )
+
+        self.logger.info(
+            f"HTTP client created with HTTP/2={'enabled' if self.http2 else 'disabled'}, "
+            f"timeout={self.timeout}s, max_retries={self.max_retries}"
+        )
+
+        return client
 
     def _get_full_url(self, endpoint: str) -> str:
         """Get full URL for endpoint"""
@@ -76,7 +89,7 @@ class ResolvepayHTTPClient:
             headers.update(additional_headers)
         return headers
 
-    def _handle_response(self, response: requests.Response) -> Dict[str, Any]:
+    def _handle_response(self, response: httpx.Response) -> Dict[str, Any]:
         """Handle API response and errors"""
         # Handle specific status codes
         if response.status_code == 401:
@@ -95,7 +108,10 @@ class ResolvepayHTTPClient:
             raise ResolvepayAPIException(
                 404,
                 "Resource not found",
-                response_data={"url": response.url, "method": response.request.method},
+                response_data={
+                    "url": str(response.url),
+                    "method": response.request.method,
+                },
             )
 
         # Handle validation errors (400, 422)
@@ -104,19 +120,25 @@ class ResolvepayHTTPClient:
             error_message = self._extract_error_message(error_data, response)
 
             error_type = (
-                "Validation error" if response.status_code == 400 else "Business validation error"
+                "Validation error"
+                if response.status_code == 400
+                else "Business validation error"
             )
             raise ResolvepayValidationException(
                 f"{error_type}: {error_message}",
-                details={"status_code": response.status_code, "response_data": error_data},
+                details={
+                    "status_code": response.status_code,
+                    "response_data": error_data,
+                },
             )
 
         # Handle other errors
-        if not response.ok:
+        if not response.is_success:
             error_data = self._safe_json_decode(response)
             error_message = error_data.get("message") if error_data else response.text
             error_message = (
-                error_message or f"API request failed with status {response.status_code}"
+                error_message
+                or f"API request failed with status {response.status_code}"
             )
 
             raise ResolvepayAPIException(
@@ -135,7 +157,7 @@ class ResolvepayHTTPClient:
             else {}
         )
 
-    def _safe_json_decode(self, response: requests.Response) -> Dict[str, Any]:
+    def _safe_json_decode(self, response: httpx.Response) -> Dict[str, Any]:
         """Safely decode JSON response"""
         try:
             return response.json()
@@ -143,7 +165,7 @@ class ResolvepayHTTPClient:
             return {}
 
     def _extract_error_message(
-        self, error_data: Dict[str, Any], response: requests.Response
+        self, error_data: Dict[str, Any], response: httpx.Response
     ) -> str:
         """Extract error message from response data"""
         if not error_data:
@@ -159,7 +181,8 @@ class ResolvepayHTTPClient:
                 details = error_details["details"]
                 if isinstance(details, list) and details:
                     detail_messages = [
-                        f"{d.get('path', 'field')}: {d.get('message', 'error')}" for d in details
+                        f"{d.get('path', 'field')}: {d.get('message', 'error')}"
+                        for d in details
                     ]
                     message += f" - {', '.join(detail_messages)}"
             return message
@@ -187,7 +210,9 @@ class ResolvepayHTTPClient:
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Make POST request"""
-        return self._request("POST", endpoint, data=data, params=params, headers=headers)
+        return self._request(
+            "POST", endpoint, data=data, params=params, headers=headers
+        )
 
     def put(
         self,
@@ -216,17 +241,20 @@ class ResolvepayHTTPClient:
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
-        """Make HTTP request with rate limiting and error handling"""
+        """Make HTTP request with rate limiting, retries, and error handling
+
+        Implements exponential backoff retry strategy for specific status codes:
+        - 429: Rate limit exceeded
+        - 500, 502, 503, 504: Server errors
+        """
         self.rate_limiter.sync_wait_if_needed()
 
         url = self._get_full_url(endpoint)
         request_headers = self._prepare_headers(headers)
 
         request_kwargs = {
-            "method": method,
             "url": url,
             "headers": request_headers,
-            "timeout": self.timeout,
         }
 
         if params:
@@ -238,34 +266,113 @@ class ResolvepayHTTPClient:
         self.logger.debug(f"Making {method} request to {url}")
         start_time = time.time()
 
-        try:
-            response = self.session.request(**request_kwargs)
-            duration = time.time() - start_time
+        # Retry logic with exponential backoff
+        last_exception = None
+        retry_status_codes = [429, 500, 502, 503, 504]
 
-            self.logger.debug(
-                f"{method} {url} completed in {duration:.2f}s with status {response.status_code}"
+        for attempt in range(self.max_retries + 1):
+            try:
+                if method == "GET":
+                    response = self.client.get(**request_kwargs)
+                elif method == "POST":
+                    response = self.client.post(**request_kwargs)
+                elif method == "PUT":
+                    response = self.client.put(**request_kwargs)
+                elif method == "DELETE":
+                    response = self.client.delete(**request_kwargs)
+                else:
+                    response = self.client.request(method, **request_kwargs)
+
+                duration = time.time() - start_time
+
+                # Log HTTP version used
+                http_version = response.http_version
+                self.logger.debug(
+                    f"{method} {url} completed in {duration:.2f}s with status {response.status_code} "
+                    f"(HTTP/{http_version})"
+                )
+
+                # Check if we need to retry based on status code
+                if (
+                    response.status_code in retry_status_codes
+                    and attempt < self.max_retries
+                ):
+                    backoff_time = 2**attempt  # Exponential backoff: 1s, 2s, 4s
+                    self.logger.warning(
+                        f"Request failed with status {response.status_code}, "
+                        f"retrying in {backoff_time}s (attempt {attempt + 1}/{self.max_retries})"
+                    )
+                    time.sleep(backoff_time)
+                    continue
+
+                return self._handle_response(response)
+
+            except httpx.TimeoutException as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    backoff_time = 2**attempt
+                    self.logger.warning(
+                        f"Request timeout, retrying in {backoff_time}s "
+                        f"(attempt {attempt + 1}/{self.max_retries})"
+                    )
+                    time.sleep(backoff_time)
+                    continue
+                self.logger.error(
+                    f"Request timeout after {self.timeout}s for {method} {url}"
+                )
+                raise ResolvepayAPIException(
+                    408, f"Request timeout after {self.timeout} seconds"
+                )
+
+            except httpx.ConnectError as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    backoff_time = 2**attempt
+                    self.logger.warning(
+                        f"Connection error, retrying in {backoff_time}s "
+                        f"(attempt {attempt + 1}/{self.max_retries})"
+                    )
+                    time.sleep(backoff_time)
+                    continue
+                self.logger.error(f"Connection error for {method} {url}: {e}")
+                raise ResolvepayAPIException(503, f"Connection error: {str(e)}")
+
+            except httpx.HTTPStatusError as e:
+                self.logger.error(f"HTTP status error for {method} {url}: {e}")
+                raise ResolvepayAPIException(
+                    e.response.status_code, f"HTTP status error: {str(e)}"
+                )
+
+            except httpx.RequestError as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    backoff_time = 2**attempt
+                    self.logger.warning(
+                        f"Request error, retrying in {backoff_time}s "
+                        f"(attempt {attempt + 1}/{self.max_retries})"
+                    )
+                    time.sleep(backoff_time)
+                    continue
+                self.logger.error(f"Request error for {method} {url}: {e}")
+                raise ResolvepayAPIException(500, f"Request error: {str(e)}")
+
+            except Exception as e:
+                log = traceback.format_exc()
+                self.logger.error(f"Unexpected error for {method} {url}: {e}\n{log}")
+                raise ResolvepayAPIException(500, f"Unexpected error: {str(e)}")
+
+        # If we exhausted all retries
+        if last_exception:
+            self.logger.error(
+                f"Request failed after {self.max_retries} retries for {method} {url}"
+            )
+            raise ResolvepayAPIException(
+                503,
+                f"Request failed after {self.max_retries} retries: {str(last_exception)}",
             )
 
-            return self._handle_response(response)
-
-        except requests.exceptions.Timeout:
-            self.logger.error(f"Request timeout after {self.timeout}s for {method} {url}")
-            raise ResolvepayAPIException(408, f"Request timeout after {self.timeout} seconds")
-
-        except requests.exceptions.ConnectionError as e:
-            self.logger.error(f"Connection error for {method} {url}: {e}")
-            raise ResolvepayAPIException(503, f"Connection error: {str(e)}")
-
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"Request error for {method} {url}: {e}")
-            raise ResolvepayAPIException(500, f"Request error: {str(e)}")
-
-        except Exception as e:
-            log = traceback.format_exc()
-            self.logger.error(f"Unexpected error for {method} {url}: {e}\n{log}")
-            raise ResolvepayAPIException(500, f"Unexpected error: {str(e)}")
-
     def close(self) -> None:
-        """Close the HTTP session"""
-        if self.session:
-            self.session.close()
+        """Close the HTTP client and release connections"""
+        if self.client:
+            self.client.close()
+            self.logger.debug("HTTP client closed")
