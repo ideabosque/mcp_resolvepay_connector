@@ -8,6 +8,8 @@ import logging
 import traceback
 from typing import Any, Dict, List, Optional
 
+from silvaengine_utility import convert_decimal_to_number
+
 from mcp_resolvepay_connector.auth import ResolvepayAuth
 from mcp_resolvepay_connector.exceptions import (
     ResolvepayAPIException,
@@ -867,7 +869,8 @@ class MCPResolvepayConnector:
             request_data["has_purchase_history"] = has_purchase_history
 
             response_data = self.http_client.post(
-                f"customers/{customer_id}/credit-check", data=request_data
+                f"customers/{customer_id}/credit-check",
+                data=convert_decimal_to_number(request_data),
             )
 
             # Log response structure for debugging
